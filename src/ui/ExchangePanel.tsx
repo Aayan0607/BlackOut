@@ -15,6 +15,7 @@ import {
   type Exchange,
 } from '../core/transfer'
 import Scanner from './Scanner'
+import MergeReveal from './MergeReveal'
 
 export function downloadText(text: string, filename: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
@@ -30,12 +31,14 @@ export default function ExchangePanel({
   repository,
   onImported,
   receipt,
+  onOpenLog,
 }: {
   doc: WorkspaceDoc | null
   deviceName: string
   repository: Repository
-  onImported: (id: string) => Promise<void>
+  onImported: (id: string, receipt: Receipt) => Promise<void>
   receipt?: Receipt
+  onOpenLog: () => void
 }) {
   const [tab, setTab] = useState<'send' | 'receive'>(doc ? 'send' : 'receive')
   const [frames, setFrames] = useState<string[]>([])
@@ -180,7 +183,7 @@ export default function ExchangePanel({
     try {
       const receipt = await repository.import(pending.doc, pending.envelope.sender)
       await resetReceiver()
-      await onImported(pending.doc.id)
+      await onImported(pending.doc.id, receipt)
       setNotice(
         receipt.sameBefore
           ? 'Already received. No duplicate records were created.'
@@ -220,6 +223,7 @@ export default function ExchangePanel({
   return (
     <section className="exchange-layout">
       <div className="panel exchange-main">
+        <MergeReveal receipt={receipt} onOpenLog={onOpenLog} />
         <div className="rendezvous-summary">
           <span className="eyebrow">TWO-WAY EXCHANGE</span>
           <p>Receive their updates → merge → send a fresh combined snapshot back.</p>

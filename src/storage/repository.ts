@@ -1,6 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { A, heads, mergeWorkspace, validateWorkspace, type WorkspaceDoc } from '../core/model'
 import type { ReceiverState } from '../core/transfer'
+import { summarizeImport, type ImportSummary } from '../core/importSummary'
 
 interface SavedWorkspace {
   id: string
@@ -14,6 +15,7 @@ export interface Receipt {
   receivedAt: string
   sameBefore: boolean
   matchedHeads: string
+  summary?: ImportSummary
 }
 interface Database extends DBSchema {
   workspaces: { key: string; value: SavedWorkspace }
@@ -91,6 +93,7 @@ export class Repository {
       receivedAt: new Date().toISOString(),
       sameBefore,
       matchedHeads: heads(merged) === heads(doc) ? heads(merged) : '',
+      summary: summarizeImport(local, merged),
     }
     await tx.objectStore('workspaces').put({
       id: merged.id,

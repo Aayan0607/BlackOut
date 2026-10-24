@@ -69,13 +69,11 @@ test('300 synthetic reports remain usable offline, paginate history, reject corr
   expect(JSON.parse(downloaded.toString()).heads).toBe(JSON.parse(buffer.toString()).heads)
   await page.getByRole('button', { name: 'Receive updates', exact: true }).click()
   const corrupted = { ...JSON.parse(buffer.toString()), sha256: '0'.repeat(64) }
-  await page
-    .getByLabel('Import exchange file', { exact: false })
-    .setInputFiles({
-      name: 'corrupt.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(corrupted)),
-    })
+  await page.getByLabel('Import exchange file', { exact: false }).setInputFiles({
+    name: 'corrupt.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(corrupted)),
+  })
   await expect(page.getByRole('alert')).toContainText('integrity check failed')
   await page.getByRole('button', { name: /Field log/ }).click()
   await expect(page.locator('article')).toHaveCount(300)
@@ -118,6 +116,7 @@ test('a simulated storage quota failure preserves the form and retry saves liter
 
 async function setup(page: Page, deviceName: string) {
   await page.goto('/')
+  await page.getByRole('button', { name: /Field log/ }).click()
   await page.getByLabel('Device name', { exact: true }).fill(deviceName)
   await page.getByRole('button', { name: 'Save device name', exact: true }).click()
   await expect(page.getByText('Device name saved.')).toBeVisible()
@@ -321,6 +320,7 @@ test('two isolated devices reopen offline, merge, resolve conflicts, and reject 
   await editAssignee(alice, 'Next checkpoint', 'Ravi')
   await editAssignee(bob, 'Next checkpoint', 'Neha')
   await incoming(bob, await outgoing(alice))
+  await expect(bob.locator('.merge-reveal-grid strong')).toHaveText(['1', '1', '1'])
   await expect(bob.locator('article')).toHaveCount(3)
   await expect(bob.getByText('Conflicting edits need review')).toBeVisible()
   await incoming(alice, await outgoing(bob))
@@ -336,6 +336,7 @@ test('two isolated devices reopen offline, merge, resolve conflicts, and reject 
   const resolved = await outgoing(alice)
   await incoming(bob, resolved)
   await incoming(bob, resolved)
+  await expect(bob.locator('.merge-reveal-grid strong')).toHaveText(['0', '0', '0'])
   await expect(bob.locator('article')).toHaveCount(3)
   await expect(bob.getByText('Conflicting edits need review')).toHaveCount(0)
   await bob.reload()
@@ -420,6 +421,7 @@ test('phone layout has no horizontal overflow and camera errors offer a fallback
   })
   const page = await context.newPage()
   await page.goto('/')
+  await page.getByRole('button', { name: /Field log/ }).click()
   await page.getByLabel('Device name', { exact: true }).fill('Phone')
   await page.getByRole('button', { name: 'Save device name', exact: true }).click()
   await page.getByRole('button', { name: 'Exchange updates', exact: false }).click()

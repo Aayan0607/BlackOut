@@ -38,7 +38,15 @@ To confirm after concurrent edits, B merges A, then sends B's combined state to 
 4. New transports: implement send/receive adapters that feed validated envelopes or a new supported protocol into the model. Keep UI and transport code out of merge rules.
 5. Storage migration: increment IndexedDB version and workspace schema independently, retain fixtures, and provide explicit migration/backup behaviour.
 
-## Boundaries
+## Interactive experience and receipt summaries
+
+`core/replay.ts` owns a deterministic sequence of encounter operations over three fresh Automerge replicas. It calls the production `addRecord`, `editRecord`, and `mergeWorkspace` APIs; it never imports the repository. The UI owns only the playback timer, selected camp, and animation state. Restart/unmount cancels pending encounter callbacks. Both assignment choices converge through the courier and return exchanges; paused playback and keyboard/reduced-motion flows are browser-tested.
+
+`core/importSummary.ts` compares the pre-import and merged documents, including all conflict alternatives. The repository computes and saves this summary in the same transaction as the import and receipt. The optional receipt field is backward-compatible with older receipts. The summary is a historical result of one import, not a claim about current remote devices or continuing conflict counts after later edits.
+
+The build emits `offline-assets.json` from its actual output assets. `useOfflineReadiness` inspects that cached manifest and each listed asset, checks that it belongs to the running entry script, and requires service-worker control. It does not make network probes or infer cache readiness from a timer. Cache errors remain visible without preventing use of the field log.
+
+## Runtime boundaries
 
 Checkpoint groups are derived from trimmed, case-insensitive location labels. They are not geographic entities or route order. Conflicting records remain visible on the board even if Automerge's displayed status is archived. Completed checkpoint counts exclude all unresolved field conflicts. Activity is sorted by reported time with an ID tie-breaker for display only; neither this ordering nor the board affects merge decisions.
 

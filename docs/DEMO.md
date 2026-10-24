@@ -14,6 +14,8 @@ Keep the live dataset small. Full-history snapshots with hundreds of records del
 
 ## Solo practice
 
+For a self-contained explanation, open **Experience BlackOut**. The terrain replay demonstrates three separate copies, independent observations, an explicit assignment decision, and a courier's return exchange. Allow roughly a minute plus the viewer's decision time. Select a camp to inspect its held reports and compare the displayed state fingerprints at completion. This is clearly labelled as a simulation; use the physical demonstration above to show actual camera exchange.
+
 This device → Create demo expedition creates eight explicitly synthetic reports with one real concurrent assignment conflict. It creates a fresh expedition ID each time, preserving existing expeditions. Share one created demo between devices; independently created demos are different expeditions and cannot merge.
 
 The release tests generate `artifacts/synthetic/demo.blackout.json` and `large.blackout.json`. Import through Create / join expedition → Exchange → Receive. These are fictional fixtures. The large fixture contains 300 records across ten locations and five team labels. They are local test artifacts, excluded from the site and Git.

@@ -19,9 +19,12 @@ import ExchangePanel from './ExchangePanel'
 import { ActivityView, CheckpointBoard } from './ExpeditionViews'
 import { filterRecords } from '../core/views'
 import { createDemoWorkspace } from '../core/demo'
+import ExpeditionReplay from './ExpeditionReplay'
+import OfflineKit, { useOfflineReadiness } from './OfflineKit'
+import MergeReveal from './MergeReveal'
 
 const repository = new Repository()
-type Page = 'log' | 'exchange' | 'device'
+type Page = 'log' | 'exchange' | 'device' | 'experience'
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 function Mountain({ className = '' }: { className?: string }) {
@@ -47,7 +50,7 @@ function Mountain({ className = '' }: { className?: string }) {
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>('log')
+  const [page, setPage] = useState<Page>('experience')
   const [doc, setDoc] = useState<WorkspaceDoc | null>(null)
   const [workspaces, setWorkspaces] = useState<{ id: string; name: string }[]>([])
   const [deviceName, setDeviceName] = useState('')
@@ -58,7 +61,8 @@ export default function App() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [online, setOnline] = useState(navigator.onLine)
-  const [cached, setCached] = useState(false)
+  const offline = useOfflineReadiness()
+  const [receivedIds, setReceivedIds] = useState<string[]>([])
   const [receipt, setReceipt] = useState<Receipt | undefined>()
   const [editing, setEditing] = useState<string | null>(null)
   const [showNew, setShowNew] = useState(false)
@@ -73,7 +77,6 @@ export default function App() {
   const activeRef = useRef<string | null>(null)
   const channel = useRef<BroadcastChannel | null>(null)
   const {
-    offlineReady: [offlineReady],
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
@@ -102,7 +105,9 @@ export default function App() {
       if (!alive) return
       setDeviceName(name ?? '')
       setNameDraft(name ?? '')
-      await refresh((await repository.getSetting('active')) ?? null)
+      const initialId = (await repository.getSetting('active')) ?? null
+      await refresh(initialId)
+      if (alive && initialId) setPage('log')
       if (alive) setReady(true)
       if (navigator.storage?.persisted) setPersistent(await navigator.storage.persisted())
     })().catch((e) => {
@@ -131,23 +136,10 @@ export default function App() {
     }
   }, [refresh])
   useEffect(() => {
-    let alive = true
-    async function checkCache() {
-      if (!('serviceWorker' in navigator) || !('caches' in window)) return
-      const registration = await navigator.serviceWorker.getRegistration()
-      const index = await caches.match(new URL('/index.html', location.origin).href, {
-        ignoreSearch: true,
-      })
-      if (alive)
-        setCached(!!registration?.active && !!navigator.serviceWorker.controller && !!index)
-    }
-    void checkCache()
-    const timer = setInterval(() => void checkCache(), 2000)
-    return () => {
-      alive = false
-      clearInterval(timer)
-    }
-  }, [offlineReady])
+    if (!receivedIds.length) return
+    const timer = setTimeout(() => setReceivedIds([]), 6000)
+    return () => clearTimeout(timer)
+  }, [receivedIds])
   async function action(fn: () => Promise<void>) {
     setBusy(true)
     setError('')
@@ -223,8 +215,12 @@ export default function App() {
       )
     })
   }
-  async function imported(id: string) {
+  async function imported(id: string, importedReceipt: Receipt) {
     await refresh(id)
+    setReceivedIds([
+      ...(importedReceipt.summary?.addedIds ?? []),
+      ...(importedReceipt.summary?.updatedIds ?? []),
+    ])
     channel.current?.postMessage('changed')
   }
   const records = doc ? Object.values(doc.records) : []
@@ -246,18 +242,20 @@ export default function App() {
   const assignees = [
     ...new Set(records.map((r) => r.assignee).filter((name) => name.trim())),
   ].sort()
-  const cacheReady = cached
+  const cacheReady = offline.ready
   const matchesReceived = !!doc && !!receipt?.matchedHeads && heads(doc) === receipt.matchedHeads
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${page === 'experience' && !workspaces.length ? 'replay-mode' : ''}`}
+    >
       <aside className="sidebar">
         <a
           href="#"
           className="brand"
           onClick={(e) => {
             e.preventDefault()
-            setPage('log')
+            setPage('experience')
           }}
         >
           <img src="/icon.svg" alt="" />
@@ -265,6 +263,17 @@ export default function App() {
             BLACKOUT<small>EXPEDITION FIELD SYSTEM</small>
           </span>
         </a>
+        <button
+          className="sidebar-replay"
+          aria-pressed={page === 'experience'}
+          onClick={() => setPage('experience')}
+        >
+          <span>▷</span>
+          <span>
+            Experience BlackOut<small>An expedition in 60 seconds</small>
+          </span>
+          <span>↗</span>
+        </button>
         <div className="sidebar-label">YOUR EXPEDITION</div>
         <label className="sr-only" htmlFor="workspace">
           Active expedition
@@ -325,7 +334,13 @@ export default function App() {
           <div className="breadcrumb">
             EXPEDITION /{' '}
             <strong>
-              {page === 'exchange' ? 'EXCHANGE' : page === 'device' ? 'DEVICE' : 'FIELD LOG'}
+              {page === 'exchange'
+                ? 'EXCHANGE'
+                : page === 'device'
+                  ? 'DEVICE'
+                  : page === 'experience'
+                    ? 'THE EXPERIMENT'
+                    : 'FIELD LOG'}
             </strong>
           </div>
           <div className="device-pill">
@@ -359,7 +374,10 @@ export default function App() {
             </div>
           ) : (
             <>
-              {!deviceName && (
+              {page === 'experience' && (
+                <ExpeditionReplay onOpenLog={() => setPage('log')} offlineReady={cacheReady} />
+              )}
+              {!deviceName && page !== 'experience' && page !== 'device' && (
                 <section className="panel name-setup">
                   <div>
                     <span className="eyebrow">FIRST, YOUR CALL SIGN</span>
@@ -385,6 +403,25 @@ export default function App() {
               )}
               {page === 'log' && (
                 <>
+                  {doc && (
+                    <div className="knowledge-strip">
+                      <span className="knowledge-icon" aria-hidden="true">
+                        ◎
+                      </span>
+                      <div>
+                        <h2>What this device knows.</h2>
+                        <p>
+                          {records.length} reports held locally · {conflictCount} needing review ·{' '}
+                          {receipt
+                            ? `Last carried by ${receipt.sender}`
+                            : 'Ready for your first encounter'}
+                        </p>
+                      </div>
+                      <button onClick={() => setPage('experience')}>
+                        Watch how updates travel ↗
+                      </button>
+                    </div>
+                  )}
                   <section className="page-heading">
                     <div>
                       <span className="eyebrow">BEYOND THE SIGNAL</span>
@@ -477,6 +514,7 @@ export default function App() {
                           </small>
                         </div>
                       </section>
+                      <MergeReveal receipt={receipt} />
                       {showNew && (
                         <RecordForm
                           key={newKind}
@@ -627,7 +665,7 @@ export default function App() {
                             <div className="record-grid">
                               {visible.map((record) => (
                                 <article
-                                  className={`record-card ${conflictsFor(record).length ? 'has-conflict' : ''}`}
+                                  className={`record-card ${conflictsFor(record).length ? 'has-conflict' : ''} ${receivedIds.includes(record.id) ? 'just-received' : ''}`}
                                   key={record.id}
                                 >
                                   <div className="spread">
@@ -686,6 +724,7 @@ export default function App() {
                     repository={repository}
                     onImported={imported}
                     receipt={receipt}
+                    onOpenLog={() => setPage('log')}
                   />
                 </>
               )}
@@ -699,6 +738,7 @@ export default function App() {
                     </div>
                   </section>
                   <div className="device-grid">
+                    <OfflineKit state={offline} />
                     <section className="panel">
                       <span className="eyebrow">PRACTICE BEFORE DEPARTURE</span>
                       <h2>Try a synthetic expedition</h2>

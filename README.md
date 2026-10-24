@@ -10,6 +10,19 @@ An expedition field log that carries updates between disconnected devices. Built
 
 Start with [the test report](docs/TEST-REPORT.md), [demo script](docs/DEMO.md), and [Vercel handoff](docs/DEPLOYMENT.md).
 
+## Experience BlackOut
+
+New visitors land on an interactive expedition replay. Returning users with an active expedition reopen their field log; **Experience BlackOut** in the sidebar opens the replay at any time.
+
+- Start the blackout or step through at your own pace. Three independent Automerge documents gather different reports and conflicting assignments.
+- Select a camp to inspect what its copy knows. Animated encounter paths show snapshots moving between teams; choose an assignment when the conflict appears.
+- Complete the return journey to make all three copies match. The replay uses the same edits and merge functions as the field log, operates entirely in memory, and never changes the user's expeditions or network connection.
+- Pause, restart, keyboard navigation, reduced-motion preferences, and offline replay are supported. No external map tiles, fonts, or animation packages are required.
+
+Real imports now show an exact result: newly added reports, reports whose fields or conflict alternatives changed, added history events, and records needing review immediately after the import. The summary is saved with the receipt; duplicate imports show zero new changes. Recently received cards briefly highlight when you return to the field log.
+
+**This device → Your offline kit** checks a build-generated manifest against cached assets for the app, merge engine, and QR decoder. Readiness requires all listed assets and an active controlling service worker; the graphics do not simulate download progress.
+
 ## Expedition workflow
 
 - Use **＋ checkpoint** to record a stop, its location, and who should follow up. Use the other quick-capture buttons for observations, hazards, and supply reports.
