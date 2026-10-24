@@ -433,3 +433,51 @@ test('phone layout has no horizontal overflow and camera errors offer a fallback
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true })
   await context.close()
 })
+
+test('receiver handshake sends incremental updates offline and keeps full backups', async ({
+  browser,
+}) => {
+  const ca = await browser.newContext({ baseURL: 'http://127.0.0.1:4173' })
+  const cb = await browser.newContext({ baseURL: 'http://127.0.0.1:4173' })
+  const a = await ca.newPage(),
+    b = await cb.newPage()
+  await setup(a, 'Sender')
+  await setup(b, 'Receiver')
+  await incoming(a, await readFile('artifacts/synthetic/demo.blackout.json'), true)
+  await incoming(b, await outgoing(a), true)
+  await ca.setOffline(true)
+  await cb.setOffline(true)
+  await a.getByRole('button', { name: /Field log/ }).click()
+  await newRecord(a, 'Incremental water report')
+  await b.getByRole('button', { name: /Exchange/ }).click()
+  await b.getByRole('button', { name: 'Receive updates', exact: true }).click()
+  await b.getByText('Request a smaller transfer', { exact: true }).click()
+  await b.getByRole('button', { name: 'Show receiver request', exact: true }).click()
+  const request = await b.getByLabel('Receiver request code', { exact: true }).inputValue()
+  await a.getByRole('button', { name: /Exchange/ }).click()
+  await a.getByText('Send only missing changes', { exact: true }).click()
+  await a.getByLabel('Receiver request', { exact: true }).fill(request)
+  await a.getByRole('button', { name: 'Prepare missing updates', exact: true }).click()
+  await expect(a.getByText(/Only missing changes:/)).toBeVisible()
+  await a.getByText('Manual transfer fallback', { exact: true }).click()
+  await b.getByText('Manual transfer fallback', { exact: true }).click()
+  const first = await a.getByLabel('Outgoing QR frame', { exact: true }).inputValue()
+  const total = Number(first.split('|')[3])
+  for (let i = 0; i < total; i++) {
+    const frame = await a.getByLabel('Outgoing QR frame', { exact: true }).inputValue()
+    await b.getByLabel('Paste one BlackOut QR frame', { exact: true }).fill(frame)
+    await b.getByRole('button', { name: 'Receive pasted frame', exact: true }).click()
+    if (i + 1 < total) await a.getByRole('button', { name: 'Next QR frame', exact: true }).click()
+  }
+  await b.getByRole('button', { name: 'Merge into expedition', exact: true }).click()
+  await b.getByRole('button', { name: /Field log/ }).click()
+  await expect(
+    b.getByRole('heading', { name: 'Incremental water report', exact: true }),
+  ).toBeVisible()
+  await b.reload()
+  await expect(
+    b.getByRole('heading', { name: 'Incremental water report', exact: true }),
+  ).toBeVisible()
+  await ca.close()
+  await cb.close()
+})

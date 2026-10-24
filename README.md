@@ -118,3 +118,7 @@ UI components do not implement merge rules. The data model is transport-independ
 React and Vite provide the app shell; Automerge provides CRDT storage/merging; idb wraps IndexedDB; qrcode generates codes; qr-scanner decodes them; vite-plugin-pwa/Workbox cache the production build. Vitest and Playwright provide verification. Dependency licenses remain with their authors. BlackOut's interface, exchange protocol, workflow, and tests are project code.
 
 AI assistance was used for implementation and testing. Maintain the real Git history and disclose reused libraries and assistance according to the organizer's rules.
+
+### Incremental QR exchange
+
+For a repeat exchange, the receiver opens **Receive updates → Request a smaller transfer → Show receiver request**. The sender opens **Send only missing changes**, scans the request (or pastes its code), then displays the resulting update frames. The receiver scans and reviews them as usual. Full exchange files remain complete backups. First joins, unknown receiver history, or cases where a snapshot is smaller use full snapshots. Receiver requests describe actual saved history; displaying codes never counts as delivery. Both devices need this app update for incremental transfers.

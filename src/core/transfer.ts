@@ -7,7 +7,8 @@ export const MAX_FRAMES = 200
 const PREFIX = 'BO1'
 export interface Exchange {
   format: 'blackout-exchange'
-  version: 1
+  version: 1 | 2
+  baseHeads?: string[]
   workspaceId: string
   sender: string
   createdAt: string
@@ -69,6 +70,7 @@ export async function makeExchange(doc: WorkspaceDoc, sender: string): Promise<s
 }
 export async function readExchange(
   text: string,
+  local?: WorkspaceDoc | null,
 ): Promise<{ doc: WorkspaceDoc; envelope: Exchange }> {
   if (new TextEncoder().encode(text).length > MAX_FILE_BYTES)
     throw new Error('Transfer file is too large.')
@@ -78,7 +80,7 @@ export async function readExchange(
   } catch {
     throw new Error('This is not a valid BlackOut exchange file.')
   }
-  if (!e || e.format !== 'blackout-exchange' || e.version !== 1)
+  if (!e || e.format !== 'blackout-exchange' || (e.version !== 1 && e.version !== 2))
     throw new Error('Unsupported transfer version or file type.')
   if (
     typeof e.workspaceId !== 'string' ||
@@ -101,9 +103,26 @@ export async function readExchange(
     throw new Error('Transfer integrity check failed. Please send it again.')
   let doc: WorkspaceDoc
   try {
-    doc = A.load(bytes)
+    if (e.version === 2) {
+      if (
+        !local ||
+        local.id !== e.workspaceId ||
+        !validHeads(e.baseHeads) ||
+        !A.hasHeads(local, e.baseHeads)
+      )
+        throw new Error('Missing base')
+      const changes: unknown = JSON.parse(new TextDecoder().decode(bytes))
+      if (!Array.isArray(changes) || changes.some((c) => typeof c !== 'string'))
+        throw new Error('Invalid changes')
+      const base = A.clone(A.view(local, e.baseHeads))
+      const [applied] = A.applyChanges(base, changes.map(fromBase64))
+      if (A.getMissingDeps(applied, []).length) throw new Error('Missing dependencies')
+      doc = A.load(A.save(applied))
+    } else doc = A.load(bytes)
   } catch {
-    throw new Error('The transferred workspace could not be decoded.')
+    throw new Error(
+      'The transfer could not be decoded or its base history is missing. Ask for a full exchange file.',
+    )
   }
   validateWorkspace(doc)
   if (doc.id !== e.workspaceId || heads(doc) !== e.heads)
@@ -170,4 +189,43 @@ export async function assembleFrames(state: ReceiverState): Promise<string> {
   if ((await sha256(new TextEncoder().encode(joined))) !== state.transferId)
     throw new Error('QR transfer failed its integrity check. Reset and scan again.')
   return new TextDecoder('utf-8', { fatal: true }).decode(fromBase64(joined))
+}
+
+function validHeads(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.length <= 16 &&
+    value.every((h) => typeof h === 'string' && /^[a-f0-9]{64}$/.test(h))
+  )
+}
+
+export function makeReceiverRequest(doc: WorkspaceDoc): string {
+  const request = { workspaceId: doc.id, heads: A.getHeads(doc) }
+  if (!validHeads(request.heads))
+    throw new Error('Too many concurrent versions for a request QR. Use a full exchange.')
+  return 'BOREQ1|' + JSON.stringify(request)
+}
+
+export async function makeRequestedExchange(doc: WorkspaceDoc, sender: string, request: string) {
+  if (request.length > 1400 || !request.startsWith('BOREQ1|'))
+    throw new Error('Scan a BlackOut receiver request.')
+  const r = JSON.parse(request.slice(7))
+  if (!r || r.workspaceId !== doc.id || !validHeads(r.heads))
+    throw new Error('Invalid request or different expedition.')
+  const full = await makeExchange(doc, sender)
+  if (!A.hasHeads(doc, r.heads)) return { text: full, incremental: false }
+  const changes = A.getChangesSince(doc, r.heads)
+  const bytes = new TextEncoder().encode(JSON.stringify(changes.map(toBase64)))
+  const envelope: Exchange = {
+    ...JSON.parse(full),
+    version: 2,
+    baseHeads: r.heads,
+    payload: toBase64(bytes),
+    sha256: await sha256(bytes),
+  }
+  const delta = JSON.stringify(envelope)
+  return delta.length < full.length
+    ? { text: delta, incremental: true }
+    : { text: full, incremental: false }
 }

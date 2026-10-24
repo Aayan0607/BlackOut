@@ -8,6 +8,8 @@ import {
   collectFrame,
   EMPTY_RECEIVER,
   makeExchange,
+  makeReceiverRequest,
+  makeRequestedExchange,
   makeFrames,
   MAX_FILE_BYTES,
   readExchange,
@@ -55,6 +57,11 @@ export default function ExchangePanel({
   const scanLock = useRef(false)
   const pendingRef = useRef(false)
   const [pending, setPending] = useState<{ doc: WorkspaceDoc; envelope: Exchange } | null>(null)
+  const [requestText, setRequestText] = useState('')
+  const [requestQr, setRequestQr] = useState('')
+  const [requestInput, setRequestInput] = useState('')
+  const [scanRequest, setScanRequest] = useState(false)
+  const [transferMode, setTransferMode] = useState('')
   const [pasted, setPasted] = useState('')
   const [receiverReady, setReceiverReady] = useState(false)
   const fingerprint = doc ? heads(doc) : ''
@@ -103,7 +110,19 @@ export default function ExchangePanel({
     return () => clearInterval(timer)
   }, [playing, frames.length, stale, tab])
 
-  async function prepare() {
+  async function showRequest() {
+    try {
+      const latest = doc && (await repository.load(doc.id))
+      if (!latest) throw new Error('Join the expedition first.')
+      const text = makeReceiverRequest(latest)
+      setRequestQr(await QRCode.toDataURL(text, { width: 480, margin: 4 }))
+      setRequestText(text)
+      setError('')
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  async function prepare(request?: string) {
     if (!doc) return
     setBusy(true)
     setError('')
@@ -113,6 +132,7 @@ export default function ExchangePanel({
     setQr('')
     setOutgoing('')
     setSentHeads('')
+    setTransferMode('')
     try {
       const latest = await repository.load(doc.id)
       if (!latest) throw new Error('Expedition unavailable.')
@@ -121,7 +141,19 @@ export default function ExchangePanel({
       setSentHeads(heads(latest))
       setFrameIndex(0)
       try {
-        setFrames(await makeFrames(text))
+        const result = request
+          ? await makeRequestedExchange(latest, deviceName, request.trim())
+          : { text, incremental: false }
+        const codes = await makeFrames(result.text)
+        setFrames(codes)
+        setScanRequest(false)
+        setTransferMode(
+          result.incremental
+            ? `Only missing changes: ${codes.length} QR frames. Full backup remains available below.`
+            : request
+              ? 'Full snapshot selected: shared history is unavailable or the snapshot is smaller.'
+              : 'Full snapshot. For repeat exchanges, scan the receiver request first.',
+        )
       } catch (e) {
         setNotice((e as Error).message)
       }
@@ -132,7 +164,7 @@ export default function ExchangePanel({
     }
   }
   async function inspect(text: string) {
-    const result = await readExchange(text)
+    const result = await readExchange(text, doc ? await repository.load(doc.id) : null)
     if (doc && result.doc.id !== doc.id)
       throw new Error(
         'This belongs to a different expedition. Switch expeditions, or choose “Join expedition” from the sidebar first.',
@@ -262,10 +294,49 @@ export default function ExchangePanel({
             <button
               className="primary"
               disabled={busy || !doc || !deviceName.trim()}
-              onClick={prepare}
+              onClick={() => void prepare()}
             >
               {outgoing ? 'Refresh outgoing snapshot' : 'Prepare update codes'}
             </button>
+            <details>
+              <summary>Send only missing changes</summary>
+              <p className="small muted">
+                On the receiving device, open Receive updates, then Show receiver request. Scan that
+                code here, then let them scan your update codes. First-time joins use a full
+                snapshot.
+              </p>
+              <button disabled={busy} onClick={() => setScanRequest(!scanRequest)}>
+                {scanRequest ? 'Close request scanner' : 'Scan receiver request'}
+              </button>
+              {scanRequest && (
+                <Scanner
+                  onCode={async (value) => {
+                    if (scanLock.current) return
+                    scanLock.current = true
+                    try {
+                      await prepare(value)
+                    } finally {
+                      scanLock.current = false
+                    }
+                  }}
+                />
+              )}
+              <label>
+                Receiver request
+                <textarea
+                  value={requestInput}
+                  maxLength={1400}
+                  onChange={(e) => setRequestInput(e.target.value)}
+                />
+              </label>
+              <button
+                disabled={busy || !requestInput.trim()}
+                onClick={() => void prepare(requestInput)}
+              >
+                Prepare missing updates
+              </button>
+            </details>
+            {transferMode && !stale && <p className="small success">{transferMode}</p>}
             {stale && (
               <p className="warning">
                 Your expedition changed. Refresh the snapshot before sending.
@@ -350,6 +421,28 @@ export default function ExchangePanel({
             <p className="muted">
               Scan every frame. Partial transfers stay on this device if you close the app.
             </p>
+            {doc && !pending && (
+              <details>
+                <summary>Request a smaller transfer</summary>
+                <p className="small muted">
+                  Show this request to the sender before scanning their updates. It describes the
+                  history already on this device.
+                </p>
+                <button onClick={() => void showRequest()}>Show receiver request</button>
+                {requestQr && (
+                  <div className="qr-stage">
+                    <img src={requestQr} alt="BlackOut receiver request" />
+                    <p>Sender scans this first; then scan their update codes below.</p>
+                  </div>
+                )}
+                {requestText && (
+                  <label>
+                    Receiver request code
+                    <textarea aria-label="Receiver request code" readOnly value={requestText} />
+                  </label>
+                )}
+              </details>
+            )}
             {!pending && receiverReady && <Scanner onCode={scan} />}
             {receiver.total > 0 && (
               <div className="transfer-progress">
