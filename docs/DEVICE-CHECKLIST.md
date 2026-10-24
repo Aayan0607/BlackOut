@@ -34,3 +34,13 @@ These checks require actual devices. Automated browser tests are complementary e
 - [ ] Mark measured results honestly; do not describe a simulator as a physical transfer.
 
 Optional after the core passes: relay A's observation through B to C while A is absent.
+
+## Phase 2 field workflow
+
+- [ ] Create an assigned checkpoint at Camp 2 and a hazard at the same location on separate devices.
+- [ ] Exchange both ways, then inspect their shared location group in Checkpoint board.
+- [ ] Open the checkpoint from the board, mark it done, and exchange the decision.
+- [ ] Confirm completed checkpoints exclude unresolved conflicts.
+- [ ] Filter records by category and assignment, then clear the filters.
+- [ ] Find both device labels in Activity and open a record from its event.
+- [ ] Repeat board, filtering, and activity use after an offline reload.

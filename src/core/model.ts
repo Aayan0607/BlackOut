@@ -127,7 +127,8 @@ function log(doc: Workspace, recordId: string, actor: string, message: string) {
 }
 export function addRecord(
   doc: WorkspaceDoc,
-  input: Pick<FieldRecord, 'title' | 'note' | 'location' | 'kind'>,
+  input: Pick<FieldRecord, 'title' | 'note' | 'location' | 'kind'> &
+    Partial<Pick<FieldRecord, 'assignee'>>,
   author: string,
 ): WorkspaceDoc {
   if (Object.keys(doc.records).length >= MAX_RECORDS)
@@ -138,7 +139,7 @@ export function addRecord(
       ...input,
       title: input.title.trim(),
       id,
-      assignee: '',
+      assignee: input.assignee?.trim() ?? '',
       status: 'open',
       author,
       createdAt: new Date().toISOString(),

@@ -4,6 +4,19 @@ An expedition field log that carries updates between disconnected devices. Built
 
 **Phase 1:** a local-first PWA with durable records, Automerge merging, visible concurrent edits, QR snapshot exchange, and file backups. There is no backend, paid API, or account requirement.
 
+**Phase 2:** checkpoint board, category/status/assignment filters, quick capture by category, assignments when creating records, expedition-wide activity, and two-way rendezvous guidance. Phase 1 workspaces and exchange files remain compatible; no storage migration is needed.
+
+## Expedition workflow
+
+- Use **＋ checkpoint** to record a stop, its location, and who should follow up. Use the other quick-capture buttons for observations, hazards, and supply reports.
+- **Checkpoint board** groups records by their typed location (ignoring case and surrounding spaces). Use a consistent name such as “Camp 2” across reports. Unlocated reports appear separately. Groups are alphabetical, not a planned route or GPS map.
+- Conflicting records and open hazards appear first at each stop. Open any item to update its status or review conflicts. The completed checkpoint count excludes unresolved conflicts; “done” is a recorded team decision, not verified arrival.
+- **All records** combines category, status, assignment, and text filters. Search includes notes, locations, assignments, and author labels. Clear filters restores active records. Archived and Needs review are separate scopes.
+- **Activity** shows saved changes carried by this expedition, including imported history. Search by record or change and filter by device label. Times are device-reported and may be out of order when device clocks differ. Load more to inspect older events.
+- At a rendezvous, receive and merge, then prepare a fresh snapshot to return. The exchange screen describes the last receipt without claiming that the other device is still up to date or that a displayed code was delivered.
+
+All views reflect only the data on this device. They become more complete when teammates exchange updates.
+
 ## Run locally
 
 Requires Node.js 22.12+ (tested with Node 24) and npm.

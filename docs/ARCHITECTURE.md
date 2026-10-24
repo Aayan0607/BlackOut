@@ -1,4 +1,4 @@
-# Phase 1 architecture and upgrade points
+# Architecture and upgrade points
 
 ## Data model
 
@@ -30,12 +30,14 @@ To confirm after concurrent edits, B merges A, then sends B's combined state to 
 
 ## Upgrade path
 
-1. Phase 2: checkpoint-oriented views, record filters, better activity inspection, clearer rendezvous flow. Preserve the core/storage APIs.
+1. Phase 2 is implemented in `core/views.ts` and `ui/ExpeditionViews.tsx`: derived checkpoint groups, composable filters, and activity inspection. The existing storage and exchange protocol remain unchanged. Record creation accepts an optional assignee, defaulting to the original empty assignment. Future structured route IDs or coordinates should use an explicit schema migration, rather than overloading location text.
 2. Incremental sync: introduce a negotiated protocol using Automerge sync messages, with per-peer state and dependency handling. Keep snapshot files as recovery/import format. Do not use wall-clock timestamps to select missing changes.
 3. Secure workspaces: define membership, key distribution, device signatures, encryption, and revocation together. A workspace ID alone is not a secret.
 4. New transports: implement send/receive adapters that feed validated envelopes or a new supported protocol into the model. Keep UI and transport code out of merge rules.
 5. Storage migration: increment IndexedDB version and workspace schema independently, retain fixtures, and provide explicit migration/backup behaviour.
 
 ## Boundaries
+
+Checkpoint groups are derived from trimmed, case-insensitive location labels. They are not geographic entities or route order. Conflicting records remain visible on the board even if Automerge's displayed status is archived. Completed checkpoint counts exclude all unresolved field conflicts. Activity is sorted by reported time with an ID tie-breaker for display only; neither this ordering nor the board affects merge decisions.
 
 No server is required for local operation. Hosting supplies the initial executable assets. The service worker handles app-shell caching; IndexedDB handles user data. Updating the service worker is prompted rather than forced during an exchange. The current origin owns its data: moving to another hostname or port creates a separate browser store, so export/import when changing deployment origins.

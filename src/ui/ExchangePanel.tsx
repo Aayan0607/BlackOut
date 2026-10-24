@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import QrScanner from 'qr-scanner'
-import type { Repository } from '../storage/repository'
+import type { Repository, Receipt } from '../storage/repository'
 import { heads, type WorkspaceDoc } from '../core/model'
 import {
   assembleFrames,
@@ -29,11 +29,13 @@ export default function ExchangePanel({
   deviceName,
   repository,
   onImported,
+  receipt,
 }: {
   doc: WorkspaceDoc | null
   deviceName: string
   repository: Repository
   onImported: (id: string) => Promise<void>
+  receipt?: Receipt
 }) {
   const [tab, setTab] = useState<'send' | 'receive'>(doc ? 'send' : 'receive')
   const [frames, setFrames] = useState<string[]>([])
@@ -216,6 +218,23 @@ export default function ExchangePanel({
   return (
     <section className="exchange-layout">
       <div className="panel exchange-main">
+        <div className="rendezvous-summary">
+          <span className="eyebrow">TWO-WAY EXCHANGE</span>
+          <p>Receive their updates → merge → send a fresh combined snapshot back.</p>
+          {receipt && doc && (
+            <p className="small">
+              Last received from <strong>{receipt.sender}</strong>.{' '}
+              {receipt.matchedHeads === fingerprint
+                ? 'Your records match that received snapshot.'
+                : 'Your local state differs from that received snapshot.'}{' '}
+              Their device may have changed since then.
+            </p>
+          )}
+          <p className="small muted">
+            Showing a code or downloading a file does not confirm delivery. Ask the other person to
+            confirm their import.
+          </p>
+        </div>
         <div className="tab-bar">
           <button
             className={tab === 'send' ? 'selected' : ''}
@@ -404,6 +423,13 @@ export default function ExchangePanel({
             <p>
               {Object.keys(pending.doc.records).length} records · Sent by {pending.envelope.sender}
             </p>
+            {doc && (
+              <p className="small">
+                {Object.keys(pending.doc.records).filter((id) => !doc.records[id]).length} new
+                record IDs in this snapshot. Shared records will be merged; your local-only records
+                are kept.
+              </p>
+            )}
             <p className="small muted">
               The sender name is self-reported. Integrity checks detect damaged data, not a trusted
               identity.

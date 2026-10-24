@@ -8,6 +8,59 @@ async function setup(page: Page, deviceName: string) {
   await expect(page.getByText('Device name saved.')).toBeVisible()
   await expect(page.locator('.sidebar-status')).toContainText('Ready for offline use')
 }
+
+test('expedition views support assigned checkpoints, filtering, history and offline reopening', async ({
+  page,
+  context,
+}) => {
+  await setup(page, 'Ridge Team')
+  await page.getByLabel('Expedition name', { exact: true }).fill('Phase 2 expedition')
+  await page.getByRole('button', { name: 'Create expedition', exact: true }).click()
+  await page.getByRole('button', { name: '＋ checkpoint', exact: true }).click()
+  await expect(page.getByRole('combobox', { name: 'Category', exact: true })).toHaveValue(
+    'checkpoint',
+  )
+  await page.getByLabel('Title', { exact: true }).fill('Reach the ridge')
+  await page.getByLabel('Location / checkpoint', { exact: true }).fill('Camp 2')
+  await page.getByLabel('Assigned team / person', { exact: true }).fill('Scout team')
+  await page.getByRole('button', { name: 'Save field record', exact: true }).click()
+  await expect(page.locator('article')).toContainText('Scout team')
+  await page.getByRole('button', { name: '＋ hazard', exact: true }).click()
+  await page.getByLabel('Title', { exact: true }).fill('Loose rocks')
+  await page.getByLabel('Location / checkpoint', { exact: true }).fill('camp 2')
+  await page.getByRole('button', { name: 'Save field record', exact: true }).click()
+  await page
+    .getByRole('combobox', { name: 'Record category', exact: true })
+    .selectOption('checkpoint')
+  await page
+    .getByRole('combobox', { name: 'Assigned team', exact: true })
+    .selectOption('name:Scout team')
+  await expect(page.locator('article')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click()
+  await expect(page.locator('article')).toHaveCount(2)
+  await page.getByRole('button', { name: 'Checkpoint board', exact: true }).click()
+  await expect(page.locator('.checkpoint-group')).toHaveCount(1)
+  await expect(page.locator('.checkpoint-item').first()).toContainText('Loose rocks')
+  await page.getByRole('button', { name: /Reach the ridge/ }).click()
+  await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('done')
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await expect(page.getByText('Record saved on this device.')).toBeVisible()
+  await page.getByRole('button', { name: 'Close record', exact: true }).click()
+  await expect(page.locator('.checkpoint-count')).toContainText('1 / 1')
+  await page.screenshot({ path: 'test-results/phase2-board-desktop.png', fullPage: true })
+  await page.getByRole('button', { name: 'Activity', exact: true }).click()
+  await page.getByLabel('Search activity', { exact: true }).fill('Reach the ridge')
+  await expect(page.locator('.activity-list li')).toHaveCount(2)
+  await context.setOffline(true)
+  await page.reload()
+  await page.getByRole('button', { name: 'Checkpoint board', exact: true }).click()
+  await expect(page.locator('.checkpoint-count')).toContainText('1 / 1')
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: 'test-results/phase2-board-mobile.png', fullPage: true })
+  await page.getByRole('button', { name: 'All records', exact: true }).click()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
 async function newRecord(page: Page, title: string) {
   await page.getByRole('button', { name: /Add field record/ }).click()
   await page.getByLabel('Title', { exact: true }).fill(title)
@@ -148,13 +201,11 @@ test('generated QR images decode offline and a partial scan resumes after reload
     const src = await alice
       .getByRole('img', { name: /BlackOut transfer frame/ })
       .getAttribute('src')
-    await bob
-      .getByLabel('Read QR image', { exact: false })
-      .setInputFiles({
-        name: 'qr.png',
-        mimeType: 'image/png',
-        buffer: Buffer.from(src!.split(',')[1], 'base64'),
-      })
+    await bob.getByLabel('Read QR image', { exact: false }).setInputFiles({
+      name: 'qr.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(src!.split(',')[1], 'base64'),
+    })
     await expect(
       bob.getByText(`${i + 1} / ${total} frames received`, { exact: true }),
     ).toBeVisible()

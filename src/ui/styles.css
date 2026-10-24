@@ -1239,6 +1239,158 @@ details textarea {
     max-width: 100%;
   }
 }
+.quick-capture,
+.view-tabs,
+.record-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+.quick-capture button {
+  font-size: 11px;
+  text-transform: capitalize;
+}
+.view-tabs {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+.view-tabs button {
+  font-size: 12px;
+}
+.view-tabs button[aria-pressed='true'] {
+  background: var(--forest, #284a36);
+  color: #fff;
+}
+.record-filters {
+  align-items: end;
+}
+.record-filters label {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+.record-filters input,
+.record-filters select {
+  margin-bottom: 0;
+}
+.record-filters button {
+  margin-bottom: 0;
+  font-size: 11px;
+}
+.board-intro {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+  margin-bottom: 20px;
+}
+.board-intro p {
+  font-size: 12px;
+}
+.checkpoint-count {
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.checkpoint-count strong {
+  font-size: 32px;
+  font-weight: 400;
+}
+.checkpoint-count span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.checkpoint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.checkpoint-group h3 {
+  overflow-wrap: anywhere;
+}
+.checkpoint-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 16px;
+  background: #f3f5eb;
+}
+.checkpoint-item > .spread {
+  width: 100%;
+}
+.checkpoint-item > strong,
+.checkpoint-item > span {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.checkpoint-item > .muted {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.activity-list {
+  list-style: none;
+  padding: 0;
+}
+.activity-list li {
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.activity-list li > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.activity-list time {
+  color: var(--muted);
+  font-size: 11px;
+}
+.activity-list p,
+.activity-list button {
+  font-size: 12px;
+}
+.activity-list button {
+  text-align: left;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.rendezvous-summary {
+  padding: 16px;
+  background: #edf1e5;
+  border-radius: 6px;
+  margin-bottom: 24px;
+}
+.rendezvous-summary p {
+  font-size: 12px;
+}
+.rendezvous-summary .eyebrow {
+  margin-bottom: 8px;
+}
+@media (max-width: 760px) {
+  .checkpoint-grid {
+    grid-template-columns: 1fr;
+  }
+  .board-intro {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .view-tabs {
+    gap: 5px;
+  }
+  .view-tabs button {
+    font-size: 11px;
+    padding: 9px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

@@ -92,14 +92,12 @@ export class Repository {
       sameBefore,
       matchedHeads: heads(merged) === heads(doc) ? heads(merged) : '',
     }
-    await tx
-      .objectStore('workspaces')
-      .put({
-        id: merged.id,
-        name: merged.name,
-        bytes: A.save(merged),
-        updatedAt: receipt.receivedAt,
-      })
+    await tx.objectStore('workspaces').put({
+      id: merged.id,
+      name: merged.name,
+      bytes: A.save(merged),
+      updatedAt: receipt.receivedAt,
+    })
     await tx.objectStore('receipts').put(receipt, doc.id)
     await tx.objectStore('settings').put(doc.id, 'active')
     await tx.done

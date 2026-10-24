@@ -16,6 +16,8 @@ import {
 } from '../core/model'
 import { Repository, type Receipt } from '../storage/repository'
 import ExchangePanel from './ExchangePanel'
+import { ActivityView, CheckpointBoard } from './ExpeditionViews'
+import { filterRecords } from '../core/views'
 
 const repository = new Repository()
 type Page = 'log' | 'exchange' | 'device'
@@ -61,6 +63,11 @@ export default function App() {
   const [showNew, setShowNew] = useState(false)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [logView, setLogView] = useState<'records' | 'board' | 'activity'>('records')
+  const [category, setCategory] = useState('all')
+  const [recordStatus, setRecordStatus] = useState('all')
+  const [assignee, setAssignee] = useState('all')
+  const [newKind, setNewKind] = useState<RecordKind>('observation')
   const [persistent, setPersistent] = useState<boolean | null>(null)
   const activeRef = useRef<string | null>(null)
   const channel = useRef<BroadcastChannel | null>(null)
@@ -183,6 +190,8 @@ export default function App() {
       await refresh(id)
       setEditing(null)
       setShowNew(false)
+      resetFilters()
+      setLogView('records')
       setPage('log')
     })
   }
@@ -201,17 +210,23 @@ export default function App() {
   }
   const records = doc ? Object.values(doc.records) : []
   const conflictCount = records.filter((r) => conflictsFor(r).length > 0).length
-  const visible = records
-    .filter(
-      (r) =>
-        (filter === 'all'
-          ? r.status !== 'archived'
-          : filter === 'conflicts'
-            ? conflictsFor(r).length > 0
-            : r.status === 'archived') &&
-        `${r.title} ${r.note} ${r.location}`.toLowerCase().includes(search.toLowerCase()),
-    )
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  function resetFilters() {
+    setFilter('all')
+    setSearch('')
+    setCategory('all')
+    setRecordStatus('all')
+    setAssignee('all')
+  }
+  const visible = filterRecords(records, {
+    scope: filter,
+    kind: category,
+    status: recordStatus,
+    assignee,
+    search,
+  })
+  const assignees = [
+    ...new Set(records.map((r) => r.assignee).filter((name) => name.trim())),
+  ].sort()
   const cacheReady = cached
   const matchesReceived = !!doc && !!receipt?.matchedHeads && heads(doc) === receipt.matchedHeads
 
@@ -445,6 +460,8 @@ export default function App() {
                       </section>
                       {showNew && (
                         <RecordForm
+                          key={newKind}
+                          initialKind={newKind}
                           busy={busy}
                           onCancel={() => setShowNew(false)}
                           onSave={async (input) => {
@@ -458,79 +475,170 @@ export default function App() {
                           }}
                         />
                       )}
-                      <div className="log-toolbar">
-                        <div className="filter-buttons">
+                      <div className="quick-capture" aria-label="Quick capture">
+                        <span className="small muted">Record at the stop</span>
+                        {kinds.map((kind) => (
                           <button
-                            className={filter === 'all' ? 'active' : ''}
-                            onClick={() => setFilter('all')}
+                            key={kind}
+                            disabled={busy || !deviceName || showNew}
+                            onClick={() => {
+                              setNewKind(kind)
+                              setShowNew(true)
+                            }}
                           >
-                            Active records
+                            ＋ {kind}
                           </button>
-                          <button
-                            className={filter === 'conflicts' ? 'active' : ''}
-                            onClick={() => setFilter('conflicts')}
-                          >
-                            Needs review {conflictCount > 0 && <b>{conflictCount}</b>}
-                          </button>
-                          <button
-                            className={filter === 'archived' ? 'active' : ''}
-                            onClick={() => setFilter('archived')}
-                          >
-                            Archived
-                          </button>
-                        </div>
-                        <input
-                          className="search"
-                          aria-label="Search records"
-                          placeholder="Search your field log…"
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                        />
+                        ))}
                       </div>
-                      {!visible.length ? (
-                        <section className="empty-state">
-                          <Mountain />
-                          <h2>
-                            {records.length ? 'No matching records.' : 'The trail starts here.'}
-                          </h2>
-                          <p className="muted">
-                            {records.length
-                              ? 'Try another filter or search.'
-                              : 'Add your first observation, hazard, supply note, or checkpoint.'}
+                      <div className="view-tabs" aria-label="Field log views">
+                        {(['records', 'board', 'activity'] as const).map((view) => (
+                          <button
+                            key={view}
+                            aria-pressed={logView === view}
+                            onClick={() => setLogView(view)}
+                          >
+                            {view === 'records'
+                              ? 'All records'
+                              : view === 'board'
+                                ? 'Checkpoint board'
+                                : 'Activity'}
+                          </button>
+                        ))}
+                      </div>
+                      {logView === 'board' && (
+                        <CheckpointBoard records={records} onOpen={setEditing} />
+                      )}
+                      {logView === 'activity' && (
+                        <ActivityView key={doc.id} doc={doc} onOpen={setEditing} />
+                      )}
+                      {logView === 'records' && (
+                        <>
+                          <div className="log-toolbar">
+                            <div className="filter-buttons">
+                              <button
+                                className={filter === 'all' ? 'active' : ''}
+                                onClick={() => setFilter('all')}
+                              >
+                                Active records
+                              </button>
+                              <button
+                                className={filter === 'conflicts' ? 'active' : ''}
+                                onClick={() => setFilter('conflicts')}
+                              >
+                                Needs review {conflictCount > 0 && <b>{conflictCount}</b>}
+                              </button>
+                              <button
+                                className={filter === 'archived' ? 'active' : ''}
+                                onClick={() => setFilter('archived')}
+                              >
+                                Archived
+                              </button>
+                            </div>
+                            <input
+                              className="search"
+                              aria-label="Search records"
+                              placeholder="Search your field log…"
+                              value={search}
+                              onChange={(e) => setSearch(e.target.value)}
+                            />
+                          </div>
+                          <div className="record-filters">
+                            <label>
+                              Record category
+                              <select
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                              >
+                                <option value="all">All categories</option>
+                                {kinds.map((kind) => (
+                                  <option key={kind}>{kind}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Record status
+                              <select
+                                value={recordStatus}
+                                onChange={(e) => setRecordStatus(e.target.value)}
+                              >
+                                <option value="all">All statuses</option>
+                                {statuses.map((status) => (
+                                  <option key={status}>{status}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Assigned team
+                              <select
+                                value={assignee}
+                                onChange={(e) => setAssignee(e.target.value)}
+                              >
+                                <option value="all">All assignments</option>
+                                <option value="unassigned">Unassigned</option>
+                                {assignees.map((name) => (
+                                  <option key={name} value={`name:${name}`}>
+                                    {name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <button onClick={resetFilters}>Clear filters</button>
+                          </div>
+                          <p className="small muted" role="status">
+                            Showing {visible.length} of {records.length} records
                           </p>
-                          {!records.length && (
-                            <button onClick={() => setShowNew(true)} disabled={!deviceName}>
-                              Add your first record →
-                            </button>
-                          )}
-                        </section>
-                      ) : (
-                        <div className="record-grid">
-                          {visible.map((record) => (
-                            <article
-                              className={`record-card ${conflictsFor(record).length ? 'has-conflict' : ''}`}
-                              key={record.id}
-                            >
-                              <div className="spread">
-                                <span className={`tag ${record.kind}`}>{record.kind}</span>
-                                <span className="small muted">{record.status}</span>
-                              </div>
-                              <h3>{record.title}</h3>
-                              <p className="record-note">{record.note || 'No additional notes.'}</p>
-                              <div className="record-meta">
-                                <span>⌖ {record.location || 'Location not recorded'}</span>
-                                <span>◎ {record.assignee || 'Unassigned'}</span>
-                              </div>
-                              {conflictsFor(record).length > 0 && (
-                                <div className="conflict-flag">↗ Conflicting edits need review</div>
+                          {!visible.length ? (
+                            <section className="empty-state">
+                              <Mountain />
+                              <h2>
+                                {records.length ? 'No matching records.' : 'The trail starts here.'}
+                              </h2>
+                              <p className="muted">
+                                {records.length
+                                  ? 'Try another filter or search.'
+                                  : 'Add your first observation, hazard, supply note, or checkpoint.'}
+                              </p>
+                              {!records.length && (
+                                <button onClick={() => setShowNew(true)} disabled={!deviceName}>
+                                  Add your first record →
+                                </button>
                               )}
-                              <div className="record-footer">
-                                <span>Recorded by {record.author}</span>
-                                <button onClick={() => setEditing(record.id)}>Open record →</button>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
+                            </section>
+                          ) : (
+                            <div className="record-grid">
+                              {visible.map((record) => (
+                                <article
+                                  className={`record-card ${conflictsFor(record).length ? 'has-conflict' : ''}`}
+                                  key={record.id}
+                                >
+                                  <div className="spread">
+                                    <span className={`tag ${record.kind}`}>{record.kind}</span>
+                                    <span className="small muted">{record.status}</span>
+                                  </div>
+                                  <h3>{record.title}</h3>
+                                  <p className="record-note">
+                                    {record.note || 'No additional notes.'}
+                                  </p>
+                                  <div className="record-meta">
+                                    <span>⌖ {record.location || 'Location not recorded'}</span>
+                                    <span>◎ {record.assignee || 'Unassigned'}</span>
+                                  </div>
+                                  {conflictsFor(record).length > 0 && (
+                                    <div className="conflict-flag">
+                                      ↗ Conflicting edits need review
+                                    </div>
+                                  )}
+                                  <div className="record-footer">
+                                    <span>Recorded by {record.author}</span>
+                                    <button onClick={() => setEditing(record.id)}>
+                                      Open record →
+                                    </button>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       )}
                       <div className="field-footer">
                         <span className="mono">EXPEDITION {doc.id.slice(0, 8).toUpperCase()}</span>
@@ -558,6 +666,7 @@ export default function App() {
                     deviceName={deviceName}
                     repository={repository}
                     onImported={imported}
+                    receipt={receipt}
                   />
                 </>
               )}
@@ -680,23 +789,28 @@ export default function App() {
 
 function RecordForm({
   busy,
+  initialKind,
   onSave,
   onCancel,
 }: {
   busy: boolean
-  onSave: (input: Pick<FieldRecord, 'title' | 'note' | 'location' | 'kind'>) => Promise<void>
+  initialKind: RecordKind
+  onSave: (
+    input: Pick<FieldRecord, 'title' | 'note' | 'location' | 'kind' | 'assignee'>,
+  ) => Promise<void>
   onCancel: () => void
 }) {
   const [title, setTitle] = useState(''),
     [note, setNote] = useState(''),
     [location, setLocation] = useState(''),
-    [kind, setKind] = useState<RecordKind>('observation')
+    [kind, setKind] = useState<RecordKind>(initialKind),
+    [assignee, setAssignee] = useState('')
   return (
     <form
       className="panel record-form"
       onSubmit={(e) => {
         e.preventDefault()
-        void onSave({ title, note, location, kind })
+        void onSave({ title, note, location, kind, assignee })
       }}
     >
       <div className="spread">
@@ -731,6 +845,15 @@ function RecordForm({
             onChange={(e) => setLocation(e.target.value)}
             maxLength={100}
             placeholder="North ridge / Camp 2"
+          />
+        </label>
+        <label className="wide">
+          Assigned team / person
+          <input
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            maxLength={80}
+            placeholder="Who should follow up?"
           />
         </label>
         <label className="wide">
