@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { initializeWasm } from '@automerge/automerge/slim'
 import wasmUrl from '@automerge/automerge/automerge.wasm?url'
 import App from './ui/App'
+import ErrorBoundary from './ui/ErrorBoundary'
 import './ui/styles.css'
 
 initializeWasm(
@@ -14,7 +15,9 @@ initializeWasm(
   .then(() => {
     ReactDOM.createRoot(document.getElementById('root')!).render(
       <React.StrictMode>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </React.StrictMode>,
     )
   })

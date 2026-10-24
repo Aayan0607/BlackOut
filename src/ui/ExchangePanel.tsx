@@ -108,6 +108,8 @@ export default function ExchangePanel({
     setPlaying(false)
     setFrames([])
     setQr('')
+    setOutgoing('')
+    setSentHeads('')
     try {
       const latest = await repository.load(doc.id)
       if (!latest) throw new Error('Expedition unavailable.')
@@ -144,9 +146,9 @@ export default function ExchangePanel({
       const next = collectFrame(receiverRef.current, value.trim())
       const changed =
         Object.keys(next.chunks).length !== Object.keys(receiverRef.current.chunks).length
+      if (changed) await repository.saveReceiver(next)
       receiverRef.current = next
       setReceiver(next)
-      if (changed) await repository.saveReceiver(next)
       setError('')
       if (Object.keys(next.chunks).length === next.total) await inspect(await assembleFrames(next))
     } catch (e) {
@@ -323,7 +325,7 @@ export default function ExchangePanel({
                 expedition.
               </p>
             )}
-            {frames.length > 0 && (
+            {frames.length > 0 && !stale && (
               <details>
                 <summary>Manual transfer fallback</summary>
                 <p className="small muted">

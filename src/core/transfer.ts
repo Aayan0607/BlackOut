@@ -47,6 +47,9 @@ export async function sha256(bytes: Uint8Array): Promise<string> {
     .join('')
 }
 export async function makeExchange(doc: WorkspaceDoc, sender: string): Promise<string> {
+  validateWorkspace(doc)
+  if (!sender.trim() || sender.length > 80)
+    throw new Error('Enter a device name of 1–80 characters.')
   const bytes = A.save(doc)
   if (bytes.length > MAX_SNAPSHOT_BYTES)
     throw new Error(

@@ -6,6 +6,10 @@ An expedition field log that carries updates between disconnected devices. Built
 
 **Phase 2:** checkpoint board, category/status/assignment filters, quick capture by category, assignments when creating records, expedition-wide activity, and two-way rendezvous guidance. Phase 1 workspaces and exchange files remain compatible; no storage migration is needed.
 
+**Phase 3:** local release hardening, a separate synthetic demo expedition, capacity/recovery tests, Vercel configuration, a future CI workflow, and demo/submission documentation. Hosting and real-phone acceptance remain separate verification steps.
+
+Start with [the test report](docs/TEST-REPORT.md), [demo script](docs/DEMO.md), and [Vercel handoff](docs/DEPLOYMENT.md).
+
 ## Expedition workflow
 
 - Use **＋ checkpoint** to record a stop, its location, and who should follow up. Use the other quick-capture buttons for observations, hazards, and supply reports.
@@ -62,12 +66,14 @@ The receiver persists incomplete transfers in IndexedDB. After an interrupted sc
 ## Verification
 
 ```sh
-npm test
-npm run build
-npm run test:e2e
+npm run test:release
 ```
 
+This runs core/storage tests (and generates the synthetic files), the production build, then browser tests. To rerun only browser tests, first ensure `artifacts/synthetic/large.blackout.json` exists by running `npm test`. Synthetic fixtures and screenshots are ignored by Git and are not bundled into the public site. Test browser contexts are isolated from your normal app data.
+
 Browser tests use an installed Google Chrome (`channel: chrome`) and launch a production preview on port 4173. They cover isolated browser profiles, offline reloads, independent edits, conflict resolution, duplicate imports, QR image decoding, persisted partial transfers, wrong-workspace rejection, and mobile layout/camera fallback. These tests do not substitute for physical phone-camera testing.
+
+The expanded release tests also cover 300 records, a 3,000-entry history boundary, all six three-team merge orders, concurrent tab writes, synthetic quota failures, stale outgoing snapshots, and hostile-looking text rendered literally. The prepared GitHub workflow uses Playwright Chromium and has not yet run remotely.
 
 ## Architecture
 

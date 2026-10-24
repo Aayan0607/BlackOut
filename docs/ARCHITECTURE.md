@@ -6,6 +6,8 @@ A version-1 Automerge document contains immutable workspace identity/name/creati
 
 Edit only fields the user actually changed. Sending every visible form value back would accidentally override independently updated fields. Concurrent values for the same field are surfaced through `getConflicts`; no wall-clock last-write policy is imposed. An explicit resolution writes the chosen field again and adds a history entry.
 
+After merging, the document is saved and loaded once before validation and return. Release tests exposed reused nested objects whose `getConflicts` handle omitted a newly merged non-winning alternative in three-way conflicts. Re-materialization preserves the change graph and heads while ensuring every alternative is inspected. All six three-team merge orders are regression-tested. The extra serialization is acceptable within the prototype's bounded workspace size and should be remeasured before increasing that limit.
+
 Two records independently describing the same real-world observation remain distinct. CRDT convergence does not deduplicate their meaning or establish which report is true. Supply reports are observations, not transactions against a guaranteed global inventory.
 
 ## Persistence

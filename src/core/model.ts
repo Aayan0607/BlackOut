@@ -98,6 +98,8 @@ export function validateWorkspace(doc: Workspace): void {
     if (!isObject(entry) || entry.id !== id) throw new Error('Invalid activity entry.')
     requireText(id, 80, 'activity identifier', true)
     requireText(entry.recordId, 80, 'activity record', true)
+    if (!Object.hasOwn(doc.records, entry.recordId))
+      throw new Error('Activity refers to a missing record.')
     requireText(entry.actor, 80, 'activity author', true)
     requireText(entry.at, 40, 'activity date', true)
     requireText(entry.message, 200, 'activity description', true)
@@ -198,7 +200,10 @@ export function mergeWorkspace(local: WorkspaceDoc, incoming: WorkspaceDoc): Wor
     incomingHashes.has(A.decodeChange(change).hash),
   )
   if (!shared) throw new Error('These documents do not share an expedition origin.')
-  const merged = A.merge(A.clone(local), incoming)
+  // Re-materialize nested objects: a merge that adds a losing concurrent value
+  // can reuse an old object whose getConflicts() handle omits that new value.
+  // Reload preserves every change/head while giving conflict inspection a fresh handle.
+  const merged = A.load<Workspace>(A.save(A.merge(A.clone(local), incoming)))
   validateWorkspace(merged)
   return merged
 }

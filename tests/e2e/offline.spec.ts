@@ -1,6 +1,121 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
+test('synthetic demo is isolated and survives backup recovery into a fresh offline profile', async ({
+  browser,
+}) => {
+  const ca = await browser.newContext({ baseURL: 'http://127.0.0.1:4173' })
+  const cb = await browser.newContext({ baseURL: 'http://127.0.0.1:4173' })
+  const a = await ca.newPage(),
+    b = await cb.newPage()
+  await setup(a, 'Demo A')
+  await setup(b, 'Demo B')
+  await a.getByLabel('Expedition name', { exact: true }).fill('Keep my expedition')
+  await a.getByRole('button', { name: 'Create expedition', exact: true }).click()
+  await newRecord(a, 'Real placeholder retained')
+  await a.getByRole('button', { name: /This device/ }).click()
+  await a.getByRole('button', { name: 'Create demo expedition', exact: true }).click()
+  await expect(
+    a.getByRole('heading', { name: 'DEMO · Northern Ridge Expedition', exact: true }),
+  ).toBeVisible()
+  await a.getByRole('button', { name: 'All records', exact: true }).click()
+  await expect(a.locator('article')).toHaveCount(8)
+  await expect(a.locator('.conflict-flag')).toHaveCount(1)
+  const backup = await outgoing(a)
+  await ca.setOffline(true)
+  await cb.setOffline(true)
+  await incoming(b, backup, true)
+  await expect(b.locator('article')).toHaveCount(8)
+  await expect(b.locator('.conflict-flag')).toHaveCount(1)
+  await b.reload()
+  await expect(b.locator('article')).toHaveCount(8)
+  await a
+    .getByRole('combobox', { name: 'Active expedition', exact: true })
+    .selectOption({ label: 'Keep my expedition' })
+  await expect(
+    a.getByRole('heading', { name: 'Real placeholder retained', exact: true }),
+  ).toBeVisible()
+  await expect(a.locator('article')).toHaveCount(1)
+  await ca.close()
+  await cb.close()
+})
+
+test('300 synthetic reports remain usable offline, paginate history, reject corrupt import, and export via file fallback', async ({
+  page,
+  context,
+}) => {
+  await setup(page, 'Endurance Browser')
+  const buffer = await readFile('artifacts/synthetic/large.blackout.json')
+  await incoming(page, buffer, true)
+  await expect(page.locator('article')).toHaveCount(300)
+  await page.getByRole('button', { name: 'Activity', exact: true }).click()
+  await expect(page.locator('.activity-list li')).toHaveCount(30)
+  await page.getByRole('button', { name: 'Show more activity', exact: true }).click()
+  await expect(page.locator('.activity-list li')).toHaveCount(60)
+  await page.getByRole('button', { name: 'Checkpoint board', exact: true }).click()
+  await expect(page.locator('.checkpoint-group')).toHaveCount(10)
+  await context.setOffline(true)
+  await page.reload()
+  await expect(page.locator('article')).toHaveCount(300)
+  await page.getByLabel('Search records', { exact: true }).fill('Synthetic report 299')
+  await expect(page.locator('article')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click()
+  const downloaded = await outgoing(page)
+  await expect(
+    page.getByText('This expedition is too large for QR exchange. Use the exchange file instead.', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  expect(JSON.parse(downloaded.toString()).heads).toBe(JSON.parse(buffer.toString()).heads)
+  await page.getByRole('button', { name: 'Receive updates', exact: true }).click()
+  const corrupted = { ...JSON.parse(buffer.toString()), sha256: '0'.repeat(64) }
+  await page
+    .getByLabel('Import exchange file', { exact: false })
+    .setInputFiles({
+      name: 'corrupt.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(corrupted)),
+    })
+  await expect(page.getByRole('alert')).toContainText('integrity check failed')
+  await page.getByRole('button', { name: /Field log/ }).click()
+  await expect(page.locator('article')).toHaveCount(300)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Checkpoint board', exact: true }).click()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('a simulated storage quota failure preserves the form and retry saves literal hostile-looking text safely', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function (...args: Parameters<typeof original>) {
+      if (this.name === 'workspaces' && sessionStorage.getItem('test-fail-next-write') === 'yes') {
+        sessionStorage.removeItem('test-fail-next-write')
+        throw new DOMException('Synthetic storage quota exceeded', 'QuotaExceededError')
+      }
+      return original.apply(this, args)
+    }
+  })
+  await setup(page, 'Quota test')
+  await page.getByLabel('Expedition name', { exact: true }).fill('Failure recovery')
+  await page.getByRole('button', { name: 'Create expedition', exact: true }).click()
+  await page.getByRole('button', { name: /Add field record/ }).click()
+  const title = '<img src=x onerror=alert(1)> · हिमालय'
+  await page.getByLabel('Title', { exact: true }).fill(title)
+  await page.getByLabel('Field notes', { exact: true }).fill('<script>window.pwned=true</script>')
+  await page.evaluate(() => sessionStorage.setItem('test-fail-next-write', 'yes'))
+  await page.getByRole('button', { name: 'Save field record', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Synthetic storage quota exceeded')
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue(title)
+  await page.getByRole('button', { name: 'Save field record', exact: true }).click()
+  await expect(page.locator('article')).toHaveCount(1)
+  await expect(page.locator('article h3')).toHaveText(title)
+  expect(await page.locator('article img, article script').count()).toBe(0)
+  await page.reload()
+  await expect(page.locator('article h3')).toHaveText(title)
+})
+
 async function setup(page: Page, deviceName: string) {
   await page.goto('/')
   await page.getByLabel('Device name', { exact: true }).fill(deviceName)
@@ -8,6 +123,79 @@ async function setup(page: Page, deviceName: string) {
   await expect(page.getByText('Device name saved.')).toBeVisible()
   await expect(page.locator('.sidebar-status')).toContainText('Ready for offline use')
 }
+
+test('another tab invalidates an outgoing snapshot until it is refreshed', async ({
+  page,
+  context,
+}) => {
+  await setup(page, 'Two tabs')
+  await page.getByLabel('Expedition name', { exact: true }).fill('Shared browser')
+  await page.getByRole('button', { name: 'Create expedition', exact: true }).click()
+  await newRecord(page, 'Original')
+  await outgoing(page)
+  const other = await context.newPage()
+  await other.goto('/')
+  await newRecord(other, 'Written in another tab')
+  await expect(
+    page.getByText('Your expedition changed. Refresh the snapshot before sending.', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Download exchange file', exact: true }),
+  ).toBeDisabled()
+  await expect(page.getByRole('img', { name: /BlackOut transfer frame/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Refresh outgoing snapshot', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: 'Download exchange file', exact: true }),
+  ).toBeEnabled()
+  await expect(page.getByRole('img', { name: /BlackOut transfer frame/ })).toBeVisible()
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({ path: 'test-results/release-exchange-desktop.png', fullPage: true })
+  await other.close()
+})
+
+test('a failed QR-frame write does not advance progress and the same frame can be retried', async ({
+  browser,
+}) => {
+  const ca = await browser.newContext({ baseURL: 'http://127.0.0.1:4173' })
+  const cb = await browser.newContext({ baseURL: 'http://127.0.0.1:4173' })
+  await cb.addInitScript(() => {
+    const original = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function (...args: Parameters<typeof original>) {
+      if (this.name === 'receiver' && sessionStorage.getItem('test-fail-frame') === 'yes') {
+        sessionStorage.removeItem('test-fail-frame')
+        throw new DOMException('Synthetic frame storage failure', 'QuotaExceededError')
+      }
+      return original.apply(this, args)
+    }
+  })
+  const a = await ca.newPage(),
+    b = await cb.newPage()
+  await setup(a, 'Sender')
+  await setup(b, 'Receiver')
+  await a.getByLabel('Expedition name', { exact: true }).fill('Frame retry')
+  await a.getByRole('button', { name: 'Create expedition', exact: true }).click()
+  await newRecord(a, 'Preserved frame')
+  await outgoing(a)
+  await a.getByText('Manual transfer fallback', { exact: true }).click()
+  const frame = await a.getByLabel('Outgoing QR frame', { exact: true }).inputValue()
+  await b.getByRole('button', { name: /Exchange updates/ }).click()
+  await b.getByText('Manual transfer fallback', { exact: true }).click()
+  await b.evaluate(() => sessionStorage.setItem('test-fail-frame', 'yes'))
+  await b.getByLabel('Paste one BlackOut QR frame', { exact: true }).fill(frame)
+  await b.getByRole('button', { name: 'Receive pasted frame', exact: true }).click()
+  await expect(b.getByRole('alert')).toContainText('Synthetic frame storage failure')
+  await expect(b.locator('.transfer-progress')).toHaveCount(0)
+  await b.getByLabel('Paste one BlackOut QR frame', { exact: true }).fill(frame)
+  await b.getByRole('button', { name: 'Receive pasted frame', exact: true }).click()
+  await expect(b.locator('.transfer-progress')).toContainText('1 /')
+  await b.reload()
+  await b.getByRole('button', { name: /Exchange updates/ }).click()
+  await expect(b.locator('.transfer-progress')).toContainText('1 /')
+  await ca.close()
+  await cb.close()
+})
 
 test('expedition views support assigned checkpoints, filtering, history and offline reopening', async ({
   page,

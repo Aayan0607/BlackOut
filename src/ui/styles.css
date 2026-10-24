@@ -147,6 +147,11 @@ a {
   display: flex;
   min-height: 100dvh;
 }
+.startup-error {
+  margin: 40px auto;
+  padding: 24px;
+  max-width: 640px;
+}
 .sidebar {
   width: 252px;
   flex-shrink: 0;

@@ -18,6 +18,7 @@ import { Repository, type Receipt } from '../storage/repository'
 import ExchangePanel from './ExchangePanel'
 import { ActivityView, CheckpointBoard } from './ExpeditionViews'
 import { filterRecords } from '../core/views'
+import { createDemoWorkspace } from '../core/demo'
 
 const repository = new Repository()
 type Page = 'log' | 'exchange' | 'device'
@@ -181,6 +182,8 @@ export default function App() {
       await repository.setSetting('active', created.id)
       await refresh(created.id)
       setExpeditionName('')
+      resetFilters()
+      setLogView('records')
       setPage('log')
     })
   }
@@ -202,6 +205,22 @@ export default function App() {
       setPage('exchange')
       setEditing(null)
       setShowNew(false)
+    })
+  }
+  async function loadDemo() {
+    await action(async () => {
+      const created = createDemoWorkspace()
+      await repository.insert(created)
+      await repository.setSetting('active', created.id)
+      await refresh(created.id)
+      resetFilters()
+      setEditing(null)
+      setShowNew(false)
+      setLogView('board')
+      setPage('log')
+      setNotice(
+        'Synthetic demo created as a separate expedition. Your other expeditions are unchanged.',
+      )
     })
   }
   async function imported(id: string) {
@@ -680,6 +699,18 @@ export default function App() {
                     </div>
                   </section>
                   <div className="device-grid">
+                    <section className="panel">
+                      <span className="eyebrow">PRACTICE BEFORE DEPARTURE</span>
+                      <h2>Try a synthetic expedition</h2>
+                      <p className="small muted">
+                        Create eight fictional reports, including checkpoints, a hazard, supply
+                        observations, and a conflicting assignment. Each demo is separate from your
+                        real records.
+                      </p>
+                      <button disabled={busy || !deviceName} onClick={() => void loadDemo()}>
+                        Create demo expedition
+                      </button>
+                    </section>
                     <section className="panel">
                       <h2>Device identity</h2>
                       <form onSubmit={saveDevice}>
