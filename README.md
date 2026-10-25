@@ -2,13 +2,15 @@
 
 An expedition field log that carries updates between disconnected devices. Built for Syntax Error 2026.
 
-**Phase 1:** a local-first PWA with durable records, Automerge merging, visible concurrent edits, QR snapshot exchange, and file backups. There is no backend, paid API, or account requirement.
+**[Open BlackOut](https://black-out-dun.vercel.app/)** · [Demo script](docs/DEMO.md) · [Test report](docs/TEST-REPORT.md) · [Deployment guide](docs/DEPLOYMENT.md)
 
-**Phase 2:** checkpoint board, category/status/assignment filters, quick capture by category, assignments when creating records, expedition-wide activity, and two-way rendezvous guidance. Phase 1 workspaces and exchange files remain compatible; no storage migration is needed.
+When expedition teams lose connectivity, their reports become isolated. BlackOut lets each team keep a durable field log offline, then carry updates between devices using a camera and screen. Independent edits merge, conflicting assignments remain visible for review, and complete expedition files provide backups.
 
-**Phase 3:** local release hardening, a separate synthetic demo expedition, capacity/recovery tests, Vercel configuration, a future CI workflow, and demo/submission documentation. Hosting and real-phone acceptance remain separate verification steps.
-
-Start with [the test report](docs/TEST-REPORT.md), [demo script](docs/DEMO.md), and [Vercel handoff](docs/DEPLOYMENT.md).
+- **Works offline after the first load:** an installable web app with local storage and a visible offline-readiness check.
+- **Shares updates without internet:** animated QR transfers, resumable scanning, and incremental transfers for devices with shared history.
+- **Keeps the expedition organized:** observations, hazards, supplies, checkpoints, assignments, filters, and activity history.
+- **Shows how it works:** an interactive three-team expedition replay uses the real merge engine without changing your saved expeditions.
+- **Runs without accounts or paid services:** no backend or paid API is required.
 
 ## Experience BlackOut
 
@@ -70,6 +72,12 @@ A QR scan updates its receiver only. Two-way exchange is necessary to bring both
 
 The receiver persists incomplete transfers in IndexedDB. After an interrupted scan, reopen Receive and continue the **same outgoing snapshot**. Refreshing the sender creates a new transfer; reset the receiver to switch to it.
 
+## Incremental QR exchange
+
+For a repeat exchange, the receiver opens **Receive updates → Request a smaller transfer → Show receiver request**. The sender opens **Send only missing changes**, scans the request (or pastes its code), then displays the resulting update frames. The receiver scans and reviews them as usual. Full exchange files remain complete backups. First joins, unknown receiver history, or cases where a snapshot is smaller use full snapshots. Receiver requests describe actual saved history; displaying codes never counts as delivery. Both devices need this app update for incremental transfers.
+
+A small update can require fewer QR frames, but there is no fixed one- or two-code guarantee. The request QR is an additional scan. Regular **Prepare update codes** sends a full snapshot; use the receiver-request workflow to request only missing changes. If both devices edited independently and the sender does not recognize the receiver's history, the app safely falls back to a full snapshot. After merging, switch roles to carry the combined updates back.
+
 ## Alternative transports
 
 - **Exchange file:** download a `.blackout.json` file, move it using an available method, and import it on the other device. It is also a full workspace backup, including history.
@@ -84,7 +92,7 @@ npm run test:release
 
 This runs core/storage tests (and generates the synthetic files), the production build, then browser tests. To rerun only browser tests, first ensure `artifacts/synthetic/large.blackout.json` exists by running `npm test`. Synthetic fixtures and screenshots are ignored by Git and are not bundled into the public site. Test browser contexts are isolated from your normal app data.
 
-Browser tests use an installed Google Chrome (`channel: chrome`) and launch a production preview on port 4173. They cover isolated browser profiles, offline reloads, independent edits, conflict resolution, duplicate imports, QR image decoding, persisted partial transfers, wrong-workspace rejection, and mobile layout/camera fallback. These tests do not substitute for physical phone-camera testing.
+Browser tests use an installed Google Chrome (`channel: chrome`) and launch a production preview on port 4173. They cover receiver-request incremental exchange, isolated browser profiles, offline reloads, independent edits, conflict resolution, duplicate imports, QR image decoding, persisted partial transfers, wrong-workspace rejection, and mobile layout/camera fallback. These tests do not substitute for physical phone-camera testing.
 
 The expanded release tests also cover 300 records, a 3,000-entry history boundary, all six three-team merge orders, concurrent tab writes, synthetic quota failures, stale outgoing snapshots, and hostile-looking text rendered literally. The prepared GitHub workflow uses Playwright Chromium and has not yet run remotely.
 
@@ -99,7 +107,7 @@ tests/e2e/                Production-browser acceptance tests
 docs/                     Protocol, architecture, physical test checklist
 ```
 
-UI components do not implement merge rules. The data model is transport-independent. A future Bluetooth, local-network, or server transport can carry the same snapshots, or introduce a versioned incremental protocol. Both the workspace schema and exchange envelope are versioned; unsupported versions fail explicitly.
+UI components do not implement merge rules. The data model is transport-independent. A future Bluetooth, local-network, or server transport can carry the same data. Full snapshots use exchange version 1; incremental updates use version 2 with the receiver's base history. QR framing supports both. Both the workspace schema and exchange envelope are versioned; unsupported versions fail explicitly.
 
 ## Limits and truthful claims
 
@@ -108,7 +116,7 @@ UI components do not implement merge rules. The data model is transport-independ
 - QR codes and files contain readable expedition data. Checksums detect corruption; they do not authenticate a sender or encrypt content.
 - Device names and timestamps are self-reported. Wall-clock time does not decide concurrent edits.
 - Browser data deletion or storage eviction can remove local records. Request persistent storage and keep exchange-file backups.
-- Full snapshots are deliberately used in Phase 1. Transfer cost grows with history. Large workspaces should use file exchange.
+- Initial joins require a full snapshot. Repeat QR transfers can send only missing changes when the sender recognizes the receiver's history; otherwise they use a full snapshot. Full-transfer cost grows with history. Large workspaces should use file exchange.
 - Limits: 300 records, 3,000 history entries, 900 KB snapshot, 1.5 MB exchange file, and 200 QR frames at 650 payload characters each. These are prototype bounds, not capacity claims for an expedition.
 - Record history preserves edits; archive is used instead of destructive deletion.
 - Physical camera reliability, mobile installation, and a deployed HTTPS origin need device validation before the live demo.
@@ -118,7 +126,3 @@ UI components do not implement merge rules. The data model is transport-independ
 React and Vite provide the app shell; Automerge provides CRDT storage/merging; idb wraps IndexedDB; qrcode generates codes; qr-scanner decodes them; vite-plugin-pwa/Workbox cache the production build. Vitest and Playwright provide verification. Dependency licenses remain with their authors. BlackOut's interface, exchange protocol, workflow, and tests are project code.
 
 AI assistance was used for implementation and testing. Maintain the real Git history and disclose reused libraries and assistance according to the organizer's rules.
-
-### Incremental QR exchange
-
-For a repeat exchange, the receiver opens **Receive updates → Request a smaller transfer → Show receiver request**. The sender opens **Send only missing changes**, scans the request (or pastes its code), then displays the resulting update frames. The receiver scans and reviews them as usual. Full exchange files remain complete backups. First joins, unknown receiver history, or cases where a snapshot is smaller use full snapshots. Receiver requests describe actual saved history; displaying codes never counts as delivery. Both devices need this app update for incremental transfers.
